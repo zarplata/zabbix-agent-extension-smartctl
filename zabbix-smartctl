@@ -1,0 +1,2 @@
+zabbix ALL=(ALL) NOPASSWD: /usr/sbin/smartctl *
+zabbix ALL=(ALL) NOPASSWD: /usr/bin/zabbix-agent-extension-smartctl *
