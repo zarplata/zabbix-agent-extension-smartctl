@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"os/exec"
 	"strings"
 
@@ -9,18 +10,6 @@ import (
 )
 
 func getDiskStats(diskInfo map[string]string) (map[string]string, error) {
-	if diskInfo["interface"] == SAS {
-		return getSASStats(diskInfo)
-	}
-
-	return getSATAStats(diskInfo)
-}
-
-func getSASStats(
-	diskInfo map[string]string,
-) (map[string]string, error) {
-	diskStats := make(map[string]string)
-
 	args := []string{smartctl, "-a"}
 	args = append(args, strings.Split(diskInfo["name"], " ")...)
 	out, err := exec.Command(sudo, args...).CombinedOutput()
@@ -31,11 +20,44 @@ func getSASStats(
 		)
 	}
 
-	rawStats := string(out)
+	if diskInfo["interface"] == SAS {
+		return getSASStats(diskInfo, string(out))
+	}
+
+	return getSATAStats(diskInfo, string(out))
+}
+
+func getSASStats(
+	diskInfo map[string]string,
+	rawStats string,
+) (map[string]string, error) {
+	diskStats := make(map[string]string)
 
 	scanner := bufio.NewScanner(strings.NewReader(rawStats))
 	for scanner.Scan() {
 		line := scanner.Text()
+		if strings.Contains(line, "Vendor:") {
+			metric := strings.Split(line, ":")[1]
+			diskStats["diskIDSAS"] = strings.TrimSpace(metric)
+		}
+
+		if strings.Contains(line, "Product:") {
+			metric := strings.Split(line, ":")[1]
+			diskStats["diskIDSAS"] = fmt.Sprintf(
+				"%s_%s",
+				diskStats["diskIDSAS"],
+				strings.TrimSpace(metric),
+			)
+		}
+
+		if strings.Contains(line, "Serial number:") {
+			metric := strings.Split(line, ":")[1]
+			diskStats["diskIDSAS"] = fmt.Sprintf(
+				"%s-%s",
+				diskStats["diskIDSAS"],
+				strings.TrimSpace(metric),
+			)
+		}
 		if strings.Contains(line, "Health Status") {
 			metric := strings.Split(line, ":")[1]
 			diskStats["healthStatus"] = strings.TrimSpace(metric)
@@ -77,25 +99,34 @@ func getSASStats(
 
 func getSATAStats(
 	diskInfo map[string]string,
+	rawStats string,
 ) (map[string]string, error) {
 	diskStats := make(map[string]string)
-
-	args := []string{smartctl, "-A"}
-	args = append(args, strings.Split(diskInfo["name"], " ")...)
-	out, err := exec.Command(sudo, args...).CombinedOutput()
-	if err != nil {
-		return nil, hierr.Errorf(
-			out, "can't get stats for %s disk",
-			diskInfo["name"],
-		)
-	}
-
-	rawStats := string(out)
 
 	scanner := bufio.NewScanner(strings.NewReader(rawStats))
 	for scanner.Scan() {
 		line := scanner.Text()
 		attribute := strings.Fields(line)
+
+		if strings.Contains(line, "Device Model:") {
+			metric := strings.Split(line, ":")[1]
+			diskStats["diskIDSATA"] = strings.Replace(
+				strings.TrimSpace(metric),
+				" ",
+				"_",
+				-1,
+			)
+		}
+
+		if strings.Contains(line, "Serial Number:") {
+			metric := strings.Split(line, ":")[1]
+			diskStats["diskIDSATA"] = fmt.Sprintf(
+				"%s-%s",
+				diskStats["diskIDSATA"],
+				strings.TrimSpace(metric),
+			)
+		}
+
 		if len(attribute) >= 9 {
 			if attribute[0] == "5" {
 				diskStats["reallocatedSectorCount"] = attribute[9]
