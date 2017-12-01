@@ -68,10 +68,15 @@ Options:
 	diskInfo["name"] = args["--disk"].(string)
 	diskInfo["interface"] = args["--interface"].(string)
 
+	var exitMsg = string("OK")
+
 	diskStats, err := getDiskStats(diskInfo)
 	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+		exitMsg = err.Error()
+		if diskStats == nil {
+			fmt.Println(exitMsg)
+			os.Exit(1)
+		}
 	}
 
 	var zabbixMetrics []*zsend.Metric
@@ -84,5 +89,5 @@ Options:
 	)
 	sender.Send(packet)
 
-	fmt.Println("OK")
+	fmt.Println(exitMsg)
 }
