@@ -68,6 +68,18 @@ func getDisks(rawOut string) ([]map[string]string, error) {
 				diskName,
 			)
 		}
+		// skip append data if duplicate #SERIAL
+		duplicate := bool(false)
+		for _, disk := range disks {
+			if diskData["{#SERIAL}"] == disk["{#SERIAL}"] {
+				duplicate = true
+				continue
+			}
+		}
+		if duplicate {
+			continue
+		}
+
 		disks = append(disks, diskData)
 	}
 
@@ -96,6 +108,14 @@ func getDiskData(diskName string) (map[string]string, error) {
 	}
 
 	diskInfo := string(rawDiskInfo)
+
+	s := regexp.MustCompile(`Serial (N|n)umber:.+`)
+	serialLines := s.FindAllString(diskInfo, -1)
+	for _, serialLine := range serialLines {
+		diskData["{#SERIAL}"] = strings.TrimSpace(
+			strings.Split(serialLine, ":")[1],
+		)
+	}
 
 	r := regexp.MustCompile(`SMART.+?: +(.+)`)
 	smartStats := r.FindAllString(diskInfo, -1)
